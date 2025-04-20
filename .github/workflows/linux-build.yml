@@ -54,7 +54,7 @@ jobs:
           tar -czvf libwebrtc-linux-m120.tar.gz out/m120
       
       - name: Upload Linux Build Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: libwebrtc-linux
           path: ${GITHUB_WORKSPACE}/webrtc-build/webrtc-checkout/src/libwebrtc-linux-m120.tar.gz
@@ -62,24 +62,21 @@ jobs:
 
   create-release:
     needs: [build-linux]
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     steps:
       - name: Download Linux Build
-        uses: actions/download-artifact@v3
+        uses: actions/download-artifact@v4
         with:
           name: libwebrtc-linux
           path: artifacts
 
       - name: Create Release
-        id: create_release
-        uses: actions/create-release@v1
+        uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: m120
-          release_name: WebRTC M120
-          draft: false
-          prerelease: false
+          name: WebRTC M120
           body: |
             WebRTC build for branch-heads/6099 (M120)
             
@@ -96,13 +93,4 @@ jobs:
             use_custom_libcxx=false
             treat_warnings_as_errors=false
             use_ozone=true
-
-      - name: Upload Linux Build to Release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ steps.create_release.outputs.upload_url }}
-          asset_path: artifacts/libwebrtc-linux-m120.tar.gz
-          asset_name: libwebrtc-linux-m120.tar.gz
-          asset_content_type: application/gzip
+          files: artifacts/libwebrtc-linux-m120.tar.gz
