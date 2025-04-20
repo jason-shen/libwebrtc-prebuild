@@ -1,0 +1,108 @@
+name: Build and Release libwebrtc
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-20.04
+    steps:
+      - name: Install Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y build-essential git python3 python3-pip
+          pip3 install depot_tools
+
+      - name: Set up workspace
+        run: |
+          # Create working directory similar to instructions but in GitHub workspace
+          WORKSPACE="${GITHUB_WORKSPACE}/webrtc-build"
+          mkdir -p ${WORKSPACE}
+          cd ${WORKSPACE}
+          
+          # Create webrtc-checkout directory
+          mkdir webrtc-checkout
+          cd webrtc-checkout
+          
+          # Add depot_tools to PATH
+          echo "PATH=${PATH}:$(which fetch | xargs dirname)" >> $GITHUB_ENV
+          
+          # Fetch WebRTC code
+          fetch --nohooks webrtc
+          gclient sync
+          
+          # Go to src directory
+          cd src
+          
+          # Checkout the specific branch
+          git checkout -b m120 refs/remotes/branch-heads/6099
+          gclient sync
+
+      - name: Build WebRTC for Linux
+        run: |
+          cd ${GITHUB_WORKSPACE}/webrtc-build/webrtc-checkout/src
+          
+          # Generate build files with exact parameters from instructions
+          gn gen out/m120 --args='is_debug=false is_component_build=false is_clang=false rtc_include_tests=false rtc_use_h264=true use_rtti=true use_custom_libcxx=false treat_warnings_as_errors=false use_ozone=true'
+          
+          # Build WebRTC
+          ninja -C out/m120
+      
+      - name: Package Linux Build
+        run: |
+          cd ${GITHUB_WORKSPACE}/webrtc-build/webrtc-checkout/src
+          tar -czvf libwebrtc-linux-m120.tar.gz out/m120
+      
+      - name: Upload Linux Build Artifact
+        uses: actions/upload-artifact@v3
+        with:
+          name: libwebrtc-linux
+          path: ${GITHUB_WORKSPACE}/webrtc-build/webrtc-checkout/src/libwebrtc-linux-m120.tar.gz
+          if-no-files-found: error
+
+  create-release:
+    needs: [build-linux]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download Linux Build
+        uses: actions/download-artifact@v3
+        with:
+          name: libwebrtc-linux
+          path: artifacts
+
+      - name: Create Release
+        id: create_release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: m120
+          release_name: WebRTC M120
+          draft: false
+          prerelease: false
+          body: |
+            WebRTC build for branch-heads/6099 (M120)
+            
+            Includes:
+            - Linux (Debian Stretch GCC 6.3 compatible build)
+            
+            Built with parameters:
+            is_debug=false
+            is_component_build=false
+            is_clang=false
+            rtc_include_tests=false
+            rtc_use_h264=true
+            use_rtti=true
+            use_custom_libcxx=false
+            treat_warnings_as_errors=false
+            use_ozone=true
+
+      - name: Upload Linux Build to Release
+        uses: actions/upload-release-asset@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          upload_url: ${{ steps.create_release.outputs.upload_url }}
+          asset_path: artifacts/libwebrtc-linux-m120.tar.gz
+          asset_name: libwebrtc-linux-m120.tar.gz
+          asset_content_type: application/gzip
