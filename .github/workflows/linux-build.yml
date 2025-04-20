@@ -11,7 +11,12 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y build-essential git python3 python3-pip
-          pip3 install depot_tools
+          
+          # Get depot_tools by cloning the repository
+          git clone https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          
+          # Add to PATH
+          echo "PATH=${GITHUB_WORKSPACE}/depot_tools:$PATH" >> $GITHUB_ENV
 
       - name: Set up workspace
         run: |
@@ -24,10 +29,7 @@ jobs:
           mkdir webrtc-checkout
           cd webrtc-checkout
           
-          # Add depot_tools to PATH
-          echo "PATH=${PATH}:$(which fetch | xargs dirname)" >> $GITHUB_ENV
-          
-          # Fetch WebRTC code
+          # Fetch WebRTC code (using depot_tools from PATH)
           fetch --nohooks webrtc
           gclient sync
           
